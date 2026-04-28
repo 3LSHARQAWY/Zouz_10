@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css" />
+    <script src="https://js.arcgis.com/4.29/"></script>
+    <title>مرصد أسيوط - أدوات القياس والمقارنة</title>
+    <style>
+        html,
+        body,
+        #mapdiv {
+            padding: 0;
+            margin: 0;
+            height: 100vh;
+            width: 100%;
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            overflow: hidden;
+        }
+        
+        .left-panel {
+            position: absolute;
+            top: 10px;
+            left: 60px;
+            z-index: 60;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.98);
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            width: 330px;
+            max-height: 90vh;
+            overflow-y: auto;
+            transition: 0.3s;
+        }
+        
+        .left-panel.hidden {
+            transform: translateX(-120%);
+        }
+        
+        .header-title {
+            color: #2c3e50;
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 5px;
+        }
+        
+        .section {
+            border-top: 1px solid #ddd;
+            padding-top: 10px;
+            margin-top: 5px;
+        }
+        
+        .section-title {
+            font-weight: bold;
+            color: #2980b9;
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        #searchDiv {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        
+        select {
+            width: 100%;
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            margin-bottom: 10px;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+        
+        .btn-tool {
+            flex: 1;
+            padding: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #f9f9f9;
+            font-weight: bold;
+        }
+        
+        .btn-tool:hover {
+            background: #eef;
+        }
+        
+        .btn-active {
+            background: #3498db !important;
+            color: white;
+            border-color: #2980b9;
+        }
+        
+        .btn-action {
+            width: 100%;
+            padding: 10px;
+            background: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        /* حاوية معرض الخرائط */
+        
+        #basemapGalleryDiv {
+            display: none;
+            margin-top: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            background: #fdfdfd;
+        }
+        
+        #toggle-main-panel {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            z-index: 100;
+            background: white;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+            font-size: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <button id="toggle-main-panel">☰</button>
+
+    <div class="left-panel" id="mainPanel">
+        <div class="header-title">🚜 مرصد أسيوط الرقمي</div>
+
+        <div class="section">
+            <span class="section-title">🔍 البحث عن مكان:</span>
+            <div id="searchDiv"></div>
+        </div>
+
+        <div class="section">
+            <span class="section-title">🗺️ خرائط الأساس:</span>
+            <button class="btn-action" id="basemapBtn" style="background: #8e44ad;">تغيير خريطة الأساس</button>
+            <div id="basemapGalleryDiv"></div>
+        </div>
+
+        <div class="section">
+            <span class="section-title">📏 أدوات القياس الهندسية:</span>
+            <div class="btn-group">
+                <button class="btn-tool" id="areaButton">📏 مساحة</button>
+                <button class="btn-tool" id="distanceButton">📏 مسافة</button>
+            </div>
+            <button class="btn-tool" id="clearMeasure" style="width:100%; color:red;">🗑 مسح القياسات</button>
+        </div>
+
+        <div class="section">
+            <span class="section-title">⬅️ المقارنة (Swipe):</span>
+            <select id="leadingLayerSelect">
+                <option>جاري تحميل الطبقات...</option>
+            </select>
+            <select id="trailingLayerSelect">
+                <option>جاري تحميل الطبقات...</option>
+            </select>
+            <button class="btn-action" id="applySwipe">تفعيل المقارنة</button>
+        </div>
+
+        <div class="section">
+            <span class="section-title">📋 التحكم في الطبقات:</span>
+            <div id="layerListDiv"></div>
+        </div>
+    </div>
+
+    <div id="mapdiv"></div>
+
+    <script>
+        require([
+            "esri/config", "esri/WebMap", "esri/views/MapView", "esri/widgets/Search",
+            "esri/widgets/LayerList", "esri/widgets/Swipe", "esri/widgets/Measurement", "esri/widgets/Home", "esri/widgets/BasemapGallery"
+        ], (esriConfig, WebMap, MapView, Search, LayerList, Swipe, Measurement, Home, BasemapGallery) => {
+
+            esriConfig.apiKey = "AAPTaRJLS6pe1lBACRAMsjSxHBA..7bS7zQ7ngX2n9cdHIZ1RANTl22C1zbg0joa3C0bTUkDboXbTZHCXJwoKLFhlkm6wir23pbD2R8bRSoUXdhwIOTXXc6xqq2pWUfMmstvEcMeDQQkwiJY2mcteSioiHLBM8CAL17SOL09BaK0RyufBaNCJ10h5canS2b-NtmoXohCJk1Dbf0Xllhxx_ZWFm3oMoU6eFCOjZFvxJHryUYW19NTIRUIoN7FresKLn8dLI5T1qVxRISRut8Y.AT1_OpK8AcUb";
+
+            const myWebMap = new WebMap({
+                portalItem: {
+                    id: "fd0f4f9cb7924ffd902d8f133e90eef9"
+                }
+            });
+
+            const asyutExtent = {
+                xmin: 30.80,
+                ymin: 26.90,
+                xmax: 31.60,
+                ymax: 27.50,
+                spatialReference: {
+                    wkid: 4326
+                }
+            };
+
+            const myView = new MapView({
+                map: myWebMap,
+                container: "mapdiv",
+                center: [31.1850, 27.1810],
+                zoom: 13,
+                constraints: {
+                    minZoom: 10,
+                    geometry: asyutExtent
+                }
+            });
+
+            const measurement = new Measurement({
+                view: myView,
+                areaUnit: "square-meters",
+                linearUnit: "meters"
+            });
+
+            let swipeWidget = null;
+
+            myView.when(() => {
+                // إضافة البحث
+                new Search({
+                    view: myView,
+                    container: "searchDiv"
+                });
+
+                // إضافة قائمة الطبقات
+                new LayerList({
+                    view: myView,
+                    container: "layerListDiv"
+                });
+
+                // إضافة زر العودة للموقع الرئيسي
+                myView.ui.add(new Home({
+                    view: myView
+                }), "top-left");
+
+                // --- برمجة أداة Basemap Gallery ---
+                const basemapGallery = new BasemapGallery({
+                    view: myView,
+                    container: "basemapGalleryDiv"
+                });
+
+                const basemapBtn = document.getElementById("basemapBtn");
+                const galleryContainer = document.getElementById("basemapGalleryDiv");
+
+                basemapBtn.onclick = () => {
+                    if (galleryContainer.style.display === "none" || galleryContainer.style.display === "") {
+                        galleryContainer.style.display = "block";
+                        basemapBtn.innerText = "إخفاء معرض الخرائط";
+                    } else {
+                        galleryContainer.style.display = "none";
+                        basemapBtn.innerText = "تغيير خريطة الأساس";
+                    }
+                };
+
+                // إعداد قائمة الطبقات للمقارنة
+                const leadingSelect = document.getElementById("leadingLayerSelect");
+                const trailingSelect = document.getElementById("trailingLayerSelect");
+                leadingSelect.innerHTML = "";
+                trailingSelect.innerHTML = "<option value='none'>خريطة الأساس</option>";
+
+                myWebMap.layers.forEach((layer) => {
+                    let opt1 = document.createElement("option");
+                    opt1.value = layer.id;
+                    opt1.text = layer.title;
+                    leadingSelect.add(opt1);
+                    let opt2 = document.createElement("option");
+                    opt2.value = layer.id;
+                    opt2.text = layer.title;
+                    trailingSelect.add(opt2);
+                });
+
+                // --- برمجة أزرار القياس ---
+                document.getElementById("areaButton").onclick = () => {
+                    measurement.activeTool = "area";
+                    setActiveButton("areaButton");
+                };
+
+                document.getElementById("distanceButton").onclick = () => {
+                    measurement.activeTool = "distance";
+                    setActiveButton("distanceButton");
+                };
+
+                document.getElementById("clearMeasure").onclick = () => {
+                    measurement.clear();
+                    measurement.activeTool = null;
+                    setActiveButton(null);
+                };
+
+                function setActiveButton(id) {
+                    document.querySelectorAll(".btn-tool").forEach(btn => btn.classList.remove("btn-active"));
+                    if (id) document.getElementById(id).classList.add("btn-active");
+                }
+
+                // تفعيل Swipe
+                document.getElementById("applySwipe").onclick = () => {
+                    if (swipeWidget) {
+                        myView.ui.remove(swipeWidget);
+                        swipeWidget.destroy();
+                    }
+                    const lLayer = myWebMap.findLayerById(leadingSelect.value);
+                    const tLayer = myWebMap.findLayerById(trailingSelect.value);
+                    swipeWidget = new Swipe({
+                        view: myView,
+                        leadingLayers: [lLayer],
+                        trailingLayers: tLayer ? [tLayer] : [],
+                        direction: "horizontal",
+                        position: 50
+                    });
+                    myView.ui.add(swipeWidget);
+                };
+            });
+
+            // فتح وإغلاق اللوحة الجانبية
+            document.getElementById("toggle-main-panel").onclick = () => {
+                document.getElementById("mainPanel").classList.toggle("hidden");
+            };
+        });
+    </script>
+</body>
+
+</html>
