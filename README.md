@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css" />
     <script src="https://js.arcgis.com/4.29/"></script>
-    <title>مرصد أسيوط - أدوات القياس والمقارنة</title>
+    <title> مرصد أسيوط - أدوات القياس والمقارنة</title>
     <style>
         html,
         body,
